@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-Definition of filter_datum function that returns an obfuscated log message
+Module for handling personal data securely
 """
 from typing import List
 import re
 import logging
 import os
 import mysql.connector
-
 
 PII_FIELDS = ('name', 'email', 'phone', 'ssn', 'password')
 
@@ -16,21 +15,16 @@ def filter_datum(fields: List[str], redaction: str,
                  message: str, separator: str) -> str:
     """
     Return an obfuscated log message
-    Args:
-        fields (list): list of strings indicating fields to obfuscate
-        redaction (str): what the field will be obfuscated to
-        message (str): the log line to obfuscate
-        separator (str): the character separating the fields
     """
     for field in fields:
-        message = re.sub(field+'=.*?'+separator,
-                         field+'='+redaction+separator, message)
+        message = re.sub(f"{field}=.*?{separator}",
+                         f"{field}={redaction}{separator}", message)
     return message
 
 
 class RedactingFormatter(logging.Formatter):
     """ Redacting Formatter class
-        """
+    """
 
     REDACTION = "***"
     FORMAT = "[HOLBERTON] %(name)s %(levelname)s %(asctime)-15s: %(message)s"
@@ -42,11 +36,7 @@ class RedactingFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         """
-        redact the message of LogRecord instance
-        Args:
-        record (logging.LogRecord): LogRecord instance containing message
-        Return:
-            formatted string
+        Redact the message of LogRecord instance
         """
         message = super(RedactingFormatter, self).format(record)
         redacted = filter_datum(self.fields, self.REDACTION,
@@ -61,11 +51,8 @@ def get_logger() -> logging.Logger:
     logger = logging.getLogger("user_data")
     logger.setLevel(logging.INFO)
     logger.propagate = False
-
     handler = logging.StreamHandler()
-
     formatter = RedactingFormatter(PII_FIELDS)
-
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     return logger
@@ -73,21 +60,26 @@ def get_logger() -> logging.Logger:
 
 def get_db() -> mysql.connector.connection.MySQLConnection:
     """
+    Returns a connector to the secure database
     """
-    user = os.getenv('PERSONAL_DATA_DB_USERNAME') or "root"
-    passwd = os.getenv('PERSONAL_DATA_DB_PASSWORD') or ""
-    host = os.getenv('PERSONAL_DATA_DB_HOST') or "localhost"
+    username = os.getenv('PERSONAL_DATA_DB_USERNAME', 'root')
+    password = os.getenv('PERSONAL_DATA_DB_PASSWORD', '')
+    host = os.getenv('PERSONAL_DATA_DB_HOST', 'localhost')
     db_name = os.getenv('PERSONAL_DATA_DB_NAME')
-    conn = mysql.connector.connect(user=user,
-                                   password=passwd,
-                                   host=host,
-                                   database=db_name)
-    return conn
+
+    connection = mysql.connector.connect(
+        user=username,
+        password=password,
+        host=host,
+        database=db_name
+    )
+
+    return connection
 
 
 def main():
     """
-    main entry point
+    Main entry point
     """
     db = get_db()
     logger = get_logger()
@@ -95,7 +87,7 @@ def main():
     cursor.execute("SELECT * FROM users;")
     fields = cursor.column_names
     for row in cursor:
-        message = "".join("{}={}; ".format(k, v) for k, v in zip(fields, row))
+        message = "".join(f"{k}={v}; " for k, v in zip(fields, row))
         logger.info(message.strip())
     cursor.close()
     db.close()
